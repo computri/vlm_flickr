@@ -1,0 +1,32 @@
+name: vlm
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch
+  - torchvision
+  - torchaudio
+  - omegaconf
+  - jpeg
+  - libjpeg-turbo
+  - libpng
+  - zlib
+  - pillow
+  - pip
+  - lightning
+  - wandb
+  - pip:
+      - fastapi
+      - "uvicorn[standard]"
+      - "pydantic==2.*"
+      - pillow
+      - matplotlib
+      - tqdm
+      - einops
+      - pytest
+      - pytest-cov
+      - huggingface
+      - transformers
+      - datasets

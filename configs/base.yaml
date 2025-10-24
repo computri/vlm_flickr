@@ -1,0 +1,15 @@
+project:
+  seed: 42
+  device: "mps"     # "cuda", "cpu", "mps"
+
+paths:
+  data_dir: "data"
+  log_dir: "logs"
+  ckpt_dir: "checkpoints"   # directory to save model checkpoints
+  ckpt_name: "vlm"         # name of the checkpoint file to save during training
+  test_ckpt_name: "pretrained_vlm" # name of the checkpoint file to load for testing/API
+
+wandb:
+  project: "vlm_ot"
+  entity: "computri"
+  log: true

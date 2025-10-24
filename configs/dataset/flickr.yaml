@@ -1,0 +1,6 @@
+dataset:
+  root: ${paths.data_dir}
+  download: true
+  input_channels: 3 # grayscale images
+  batch_size: 32 # batch size for training and evaluation
+  num_workers: 0  # number of workers for data loading
