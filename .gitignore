@@ -12,5 +12,7 @@ logs/
 .DS_Store
 .vscode/
 .idea/
-lightning_logs
-losses
+lightning_logs/
+losses/
+data/flickr30k/
+vlm/

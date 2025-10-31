@@ -1,6 +1,3 @@
 model:
   embed_dim: 512      # dimension of latent space
-  beta: 0.5           # B-VAE weighting
-  beta_warmup: 0      # number of epochs to warmup β from 0 to beta (not implemented)
   hidden_channels: 64 # number of channels in hidden layers
-  conditional: true   # whether to use class conditioning (cVAE) or regular VAE

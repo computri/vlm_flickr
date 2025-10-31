@@ -30,3 +30,4 @@ dependencies:
       - huggingface
       - transformers
       - datasets
+      - nltk

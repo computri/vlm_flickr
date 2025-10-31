@@ -12,7 +12,7 @@ from nltk.tokenize import word_tokenize
 class Flickr30kDataset(Dataset):
     def __init__(self, data_root="./data/flickr30k", split='train', 
                  image_size=224, max_caption_length=77, 
-                 auto_download=True, max_samples=None):
+                 auto_download=True):
         """
         Complete Flickr30k dataset that downloads and creates dataloaders
         
@@ -27,7 +27,6 @@ class Flickr30kDataset(Dataset):
         self.data_root = Path(data_root)
         self.split = split
         self.max_caption_length = max_caption_length
-        self.max_samples = max_samples
         
         # Setup dataset
         if auto_download:
@@ -78,7 +77,7 @@ class Flickr30kDataset(Dataset):
         ds = load_dataset("clip-benchmark/wds_flickr30k")
         
         # Debug: check structure
-        print("📋 Dataset structure:")
+        print("Dataset structure:")
         for split_name in ds.keys():
             print(f"   Split: {split_name}")
             if len(ds[split_name]) > 0:
@@ -90,12 +89,10 @@ class Flickr30kDataset(Dataset):
         all_data = []
         
         for split_name in ds.keys():
-            print(f"📊 Processing {split_name}...")
+            print(f"Processing {split_name}...")
             split_data = []
             
             for i, item in enumerate(ds[split_name]):
-                if self.max_samples and i >= self.max_samples:
-                    break
                 
                 # Debug first few items
                 if i < 3:
@@ -193,14 +190,13 @@ class Flickr30kDataset(Dataset):
         df = pd.read_csv(csv_file)
         data = [(row['image'], row['caption']) for _, row in df.iterrows()]
         
-        if self.max_samples:
-            data = data[:self.max_samples]
+
         
         print(f"Loaded {len(data)} image-caption pairs for {self.split}")
         return data
     
     def _preprocess_text(self, text):
-        """Preprocess text for VLM + OT"""
+        """Preprocess text for VLM"""
         text = text.lower().strip()
         
         try:
@@ -208,7 +204,7 @@ class Flickr30kDataset(Dataset):
         except:
             tokens = text.split()
         
-        # Fixed length for OT alignment
+        # Fixed length for alignment
         if len(tokens) > self.max_caption_length:
             tokens = tokens[:self.max_caption_length]
         else:
@@ -224,194 +220,29 @@ class Flickr30kDataset(Dataset):
         
         # Load image
         image_path = self.data_root / "images" / image_name
+
         try:
-            image = Image.open(image_path).convert('RGB')
-            image = self.image_transform(image)
+            pil_image = Image.open(image_path).convert('RGB')
+
+            # Keep unnormalized version for visualization
+            image_raw = transforms.ToTensor()(pil_image)  # [0, 1] float tensor
+
+            # Normalized version for model input
+            image = self.image_transform(pil_image)       # normalized for CLIP
         except Exception as e:
             print(f"Error loading {image_path}: {e}")
             image = torch.zeros(3, 224, 224)
+            image_raw = torch.zeros(3, 224, 224)
+
+    
         
         # Process caption
         caption = self._preprocess_text(caption)
         
         return {
             'image': image,
+            'image_raw': image_raw,
             'caption': caption,
             'image_id': image_name,
             'index': idx
         }
-
-def create_flickr30k_dataloader(data_root="./data/flickr30k", split='train', 
-                               batch_size=32, image_size=224, 
-                               num_workers=4, shuffle=None, 
-                               auto_download=True, max_samples=None):
-    """
-    Create Flickr30k DataLoader (downloads if needed)
-    
-    Args:
-        data_root: Dataset directory
-        split: 'train', 'val', or 'test'
-        batch_size: Batch size
-        image_size: Image size
-        num_workers: Number of workers
-        shuffle: Whether to shuffle (auto if None)
-        auto_download: Download if not found
-        max_samples: Limit samples for testing
-    """
-    
-    if shuffle is None:
-        shuffle = (split == 'train')
-    
-    # Create dataset (downloads if needed)
-    dataset = Flickr30kDataset(
-        data_root=data_root,
-        split=split,
-        image_size=image_size,
-        auto_download=auto_download,
-        max_samples=max_samples
-    )
-    
-    def collate_fn(batch):
-        images = torch.stack([item['image'] for item in batch])
-        captions = [item['caption'] for item in batch]
-        image_ids = [item['image_id'] for item in batch]
-        indices = torch.tensor([item['index'] for item in batch])
-        
-        return {
-            'images': images,
-            'captions': captions,
-            'image_ids': image_ids,
-            'indices': indices,
-            'batch_size': len(batch)
-        }
-    
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        pin_memory=True,
-        collate_fn=collate_fn,
-        drop_last=(split == 'train'),
-        persistent_workers=(num_workers > 0)
-    )
-    
-    return dataloader
-
-def get_flickr30k_info(dataloader):
-    """Get dataset statistics"""
-    dataset = dataloader.dataset
-    
-    stats = {
-        'split': dataset.split,
-        'total_samples': len(dataset),
-        'num_batches': len(dataloader),
-        'batch_size': dataloader.batch_size,
-        'data_root': str(dataset.data_root)
-    }
-    
-    print(f"Flickr30k Dataset Info:")
-    print(f"   Split: {stats['split']}")
-    print(f"   Samples: {stats['total_samples']}")
-    print(f"   Batches: {stats['num_batches']}")
-    print(f"   Batch size: {stats['batch_size']}")
-    print(f"   Location: {stats['data_root']}")
-    
-    # Test a batch
-    try:
-        batch = next(iter(dataloader))
-        print(f"   Image shape: {batch['images'].shape}")
-        print(f"   Sample caption: {batch['captions'][0][:60]}...")
-        stats['image_shape'] = batch['images'].shape[1:]
-    except Exception as e:
-        print(f"   Error loading batch: {e}")
-    
-    return stats
-
-def quick_test():
-    """Quick test function"""
-    print("Quick Flickr30k Test")
-    
-    # Small test dataset
-    train_loader = create_flickr30k_dataloader(
-        data_root="./data/flickr30k_test",
-        split='train',
-        batch_size=4,
-        max_samples=100,  # Small for testing
-        num_workers=2
-    )
-    
-    # Get info
-    stats = get_flickr30k_info(train_loader)
-    
-    # Test iteration
-    print("\nTesting iteration...")
-    for i, batch in enumerate(train_loader):
-        print(f"   Batch {i+1}: {batch['images'].shape}, {len(batch['captions'])} captions")
-        if i >= 2:  # Just test a few batches
-            break
-    
-    print("Test complete")
-    return train_loader
-
-# Convenience functions for different use cases
-def get_small_flickr30k(batch_size=16):
-    """Get small dataset for quick prototyping"""
-    return create_flickr30k_dataloader(
-        data_root="./data/flickr30k_small",
-        split='train',
-        batch_size=batch_size,
-        max_samples=1000,
-        num_workers=2
-    )
-
-def get_full_flickr30k(split='train', batch_size=32):
-    """Get full dataset for training"""
-    return create_flickr30k_dataloader(
-        data_root="./data/flickr30k",
-        split=split,
-        batch_size=batch_size,
-        num_workers=4
-    )
-
-def get_all_splits(data_root="./data/flickr30k", batch_size=32):
-    """Get all splits (train, val, test)"""
-    splits = {}
-    for split in ['train', 'val', 'test']:
-        try:
-            splits[split] = create_flickr30k_dataloader(
-                data_root=data_root,
-                split=split,
-                batch_size=batch_size,
-                auto_download=(split == 'train')  # Only download once
-            )
-            print(f"{split} split loaded")
-        except Exception as e:
-            print(f"Failed to load {split}: {e}")
-    
-    return splits
-
-if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Flickr30k Dataset - All-in-One")
-    parser.add_argument("--test", action="store_true", help="Run quick test")
-    parser.add_argument("--split", default="train", help="Dataset split")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")  
-    parser.add_argument("--max_samples", type=int, default=None, help="Limit samples")
-    parser.add_argument("--data_root", default="./data/flickr30k", help="Data directory")
-    
-    args = parser.parse_args()
-    
-
-    # Create dataloader
-    loader = create_flickr30k_dataloader(
-        data_root=args.data_root,
-        split=args.split,
-        batch_size=args.batch_size,
-        max_samples=args.max_samples
-    )
-    
-    # Show info
-    get_flickr30k_info(loader)
-    

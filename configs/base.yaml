@@ -1,6 +1,6 @@
 project:
   seed: 42
-  device: "mps"     # "cuda", "cpu", "mps"
+  device: "cuda"     # "cuda", "cpu", "mps"
 
 paths:
   data_dir: "data"
